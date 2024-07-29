@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poe-py OLY - Olympische Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #87CEEB;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 2px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 320;
+        canvas.height = 480;
+
+        const oly = {
+            x: 50,
+            y: canvas.height / 2,
+            radius: 30,
+            velocity: 0,
+            gravity: 0.25,
+            jumpStrength: -6.5
+        };
+
+        let rings = [];
+        const ringRadius = 40;
+        const ringGap = 280;
+        let score = 0;
+        let gameOver = false;
+        let gameStarted = false;
+
+        const olympicColors = ['#0081C8', '#FCB131', '#000000', '#00A651', '#EE334E'];
+        let currentColorIndex = 0;
+
+        const olyImg = new Image();
+        olyImg.src = 'data:image/svg+xml,' + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="48" fill="#0081C8"/>
+            <text x="50" y="70" font-family="Arial, sans-serif" font-size="40" fill="white" text-anchor="middle" font-weight="bold">OLY</text>
+        </svg>
+        `);
+
+        function createRing() {
+            const minGapCenter = ringGap / 2 + ringRadius + 20;
+            const maxGapCenter = canvas.height - ringGap / 2 - ringRadius - 20;
+            const gapCenter = Math.random() * (maxGapCenter - minGapCenter) + minGapCenter;
+            rings.push({
+                x: canvas.width + ringRadius,
+                topY: gapCenter - ringGap / 2,
+                bottomY: gapCenter + ringGap / 2,
+                color: olympicColors[currentColorIndex],
+                passed: false
+            });
+            currentColorIndex = (currentColorIndex + 1) % olympicColors.length;
+        }
+
+        function drawOLY() {
+            ctx.save();
+            ctx.translate(oly.x, oly.y);
+            ctx.rotate(oly.velocity * 0.05);
+            ctx.drawImage(olyImg, -oly.radius, -oly.radius, oly.radius * 2, oly.radius * 2);
+            ctx.restore();
+        }
+
+        function drawRings() {
+            rings.forEach(ring => {
+                ctx.strokeStyle = ring.color;
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                ctx.arc(ring.x, ring.topY, ringRadius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(ring.x, ring.bottomY, ringRadius, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+        }
+
+        function drawScore() {
+            ctx.fillStyle = '#000';
+            ctx.font = '24px Arial';
+            ctx.fillText(`Punkte: ${score}`, 10, 30);
+        }
+
+        function drawBackground() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#E0F7FA');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function update() {
+            if (!gameStarted || gameOver) return;
+
+            oly.velocity += oly.gravity;
+            oly.y += oly.velocity;
+
+            if (oly.y + oly.radius > canvas.height) {
+                gameOver = true;
+            }
+
+            rings.forEach(ring => {
+                ring.x -= 2;
+
+                if (ring.x + ringRadius < oly.x - oly.radius && !ring.passed) {
+                    score++;
+                    ring.passed = true;
+                }
+
+                const dx = oly.x - ring.x;
+                const dyTop = oly.y - ring.topY;
+                const dyBottom = oly.y - ring.bottomY;
+                const distanceTop = Math.sqrt(dx * dx + dyTop * dyTop);
+                const distanceBottom = Math.sqrt(dx * dx + dyBottom * dyBottom);
+
+                if (distanceTop < oly.radius + ringRadius && distanceTop > ringRadius - oly.radius) {
+                    gameOver = true;
+                }
+                if (distanceBottom < oly.radius + ringRadius && distanceBottom > ringRadius - oly.radius) {
+                    gameOver = true;
+                }
+            });
+
+            rings = rings.filter(ring => ring.x + ringRadius > 0);
+
+            if (rings.length === 0 || rings[rings.length - 1].x < canvas.width - 200) {
+                createRing();
+            }
+        }
+
+        function drawTitleScreen() {
+            drawBackground();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#FFF';
+            ctx.font = 'bold 36px Arial';
+            ctx.fillText('Poe-py OLY', canvas.width / 2 - 90, canvas.height / 2 - 100);
+            ctx.font = '20px Arial';
+            ctx.fillText('Olympische Edition', canvas.width / 2 - 80, canvas.height / 2 - 60);
+            ctx.fillText('Tippe zum Springen', canvas.width / 2 - 80, canvas.height / 2 - 20);
+            ctx.fillText('Vermeide Ringe', canvas.width / 2 - 65, canvas.height / 2 + 20);
+            ctx.fillText('Sammle Punkte', canvas.width / 2 - 65, canvas.height / 2 + 60);
+            ctx.font = '24px Arial';
+            ctx.fillText('Tippe zum Starten', canvas.width / 2 - 85, canvas.height / 2 + 120);
+        }
+
+        function draw() {
+            drawBackground();
+
+            if (!gameStarted) {
+                drawTitleScreen();
+                return;
+            }
+
+            drawRings();
+            drawOLY();
+            drawScore();
+
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#FFF';
+                ctx.font = '30px Arial';
+                ctx.fillText('Spiel vorbei', canvas.width / 2 - 70, canvas.height / 2);
+                ctx.fillText(`Punkte: ${score}`, canvas.width / 2 - 50, canvas.height / 2 + 40);
+                ctx.font = '20px Arial';
+                ctx.fillText('Tippe zum Neustarten', canvas.width / 2 - 85, canvas.height / 2 + 80);
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function jump() {
+            if (!gameStarted) {
+                gameStarted = true;
+            } else if (gameOver) {
+                resetGame();
+            } else {
+                oly.velocity = oly.jumpStrength;
+            }
+        }
+
+        function resetGame() {
+            oly.y = canvas.height / 2;
+            oly.velocity = 0;
+            rings = [];
+            score = 0;
+            gameOver = false;
+            currentColorIndex = 0;
+        }
+
+        canvas.addEventListener('click', jump);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
